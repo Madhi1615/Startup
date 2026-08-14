@@ -1,7 +1,9 @@
 window.APP_CONFIG = {
   // Supabase dashboard → Project Settings → API
-  supabaseUrl: "PASTE_YOUR_SUPABASE_URL",
-  supabaseKey: "PASTE_YOUR_PUBLISHABLE_OR_ANON_KEY",
+  supabaseUrl: "https://cfayphtklnvvtuxfvhon.supabase.co",
+  supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmYXlwaHRrbG52dnR1eGZ2aG9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzQxMzAsImV4cCI6MjEwMjMxMDEzMH0.zIWhoBPBk-AicZanF_E6fpmxHxYiNx8QQxFVXyXRPms",
+
+
 
   fallbackBrand: "Let's Match",
   fallbackTitle: "Find your people. Build something together. ✨",
