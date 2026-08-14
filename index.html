@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#fd297b" />
+  <meta name="description" content="A fun, social-app-inspired registration form" />
+  <title>Let's Match</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="ambient ambient-c"></div>
+
+  <header class="topbar">
+    <a href="./" class="brand"><span class="brand-icon">♥</span><span id="brandText">Let's Match</span></a>
+    <div class="topbar-right">
+      <span class="live-pill"><i></i> Open</span>
+      <a href="admin.html" class="admin-link">Admin</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="hero compact-hero">
+      <div>
+        <span class="eyebrow">CONNECT • SHARE • MATCH</span>
+        <h1 id="formTitle">Find your vibe ✨</h1>
+        <p id="formDescription">A quick, colorful form with a swipe-style experience.</p>
+      </div>
+      <div class="hero-badge" aria-hidden="true">
+        <span>🔥</span>
+        <strong>Good vibes</strong>
+        <small>One card at a time</small>
+      </div>
+    </section>
+
+    <section id="setupNotice" class="notice hidden">
+      <strong>Setup needed.</strong> Add your Supabase project URL and publishable/anon key in <code>assets/config.js</code>, run the SQL migration, then use the Admin page to import the Google Form.
+    </section>
+
+    <section id="closedNotice" class="notice hidden">
+      <strong>This form is currently closed.</strong>
+    </section>
+
+    <section class="form-app" id="formApp" aria-live="polite">
+      <div class="progress-wrap">
+        <div class="progress-meta"><span id="progressLabel">Getting ready…</span><span id="progressPercent">0%</span></div>
+        <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+      </div>
+
+      <div id="questionStage" class="question-stage">
+        <div class="loading-card">
+          <div class="heart-pulse">♥</div>
+          <p>Loading your form…</p>
+        </div>
+      </div>
+
+      <div id="navRow" class="nav-row hidden">
+        <button id="backBtn" class="btn btn-ghost" type="button">← Back</button>
+        <button id="nextBtn" class="btn btn-primary" type="button">Next →</button>
+      </div>
+    </section>
+
+    <section class="privacy-row">
+      <span>🔒</span>
+      <p>Your answers are stored in the connected Supabase database. Public visitors can submit responses but cannot read other people's submissions.</p>
+    </section>
+  </main>
+
+  <footer class="footer"><span id="footerBrand">Let's Match</span><span>GitHub Pages + Supabase</span></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/config.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

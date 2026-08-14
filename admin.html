@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#1b0a2a" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Admin • Let's Match</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body class="admin-body">
+  <header class="topbar">
+    <a href="index.html" class="brand"><span class="brand-icon">♥</span><span>Let's Match</span></a>
+    <div class="topbar-right"><a href="index.html" class="admin-link">View form ↗</a></div>
+  </header>
+
+  <main class="admin-page">
+    <section id="adminSetupNotice" class="notice hidden">
+      Configure <code>assets/config.js</code> first.
+    </section>
+
+    <section id="loginPanel" class="admin-card auth-card">
+      <span class="eyebrow">PRIVATE ADMIN</span>
+      <h1>Welcome back 👋</h1>
+      <p>Sign in with an admin account from Supabase Auth.</p>
+      <form id="loginForm" class="stack-form">
+        <label>Email<input id="loginEmail" type="email" autocomplete="email" required /></label>
+        <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required /></label>
+        <button class="btn btn-primary" type="submit">Sign in</button>
+        <p id="loginError" class="error-text"></p>
+      </form>
+    </section>
+
+    <section id="dashboard" class="dashboard hidden">
+      <div class="dashboard-head">
+        <div><span class="eyebrow">ADMIN DASHBOARD</span><h1>Form control room</h1></div>
+        <button id="logoutBtn" class="btn btn-ghost" type="button">Sign out</button>
+      </div>
+
+      <div class="stat-grid">
+        <article class="stat-card"><span>Responses</span><strong id="responseCount">—</strong><small>Total submissions</small></article>
+        <article class="stat-card"><span>Questions</span><strong id="questionCount">—</strong><small>Currently published</small></article>
+        <article class="stat-card"><span>Status</span><strong id="statusText">—</strong><small>Public form availability</small></article>
+      </div>
+
+      <div class="admin-grid">
+        <section class="admin-card">
+          <div class="card-head"><div><span class="eyebrow">GOOGLE FORM IMPORT</span><h2>Import exact questions</h2></div></div>
+          <p>The importer reads the public Google Form structure and stores the question schema in Supabase. This website then renders the questions with the custom swipe-style interface.</p>
+          <label class="full-label">Google Form public URL
+            <input id="sourceFormUrl" type="url" placeholder="https://docs.google.com/forms/d/e/.../viewform" />
+          </label>
+          <div class="button-row">
+            <button id="importBtn" class="btn btn-primary" type="button">Import / refresh questions</button>
+          </div>
+          <p id="importMessage" class="status-message"></p>
+        </section>
+
+        <section class="admin-card">
+          <div class="card-head"><div><span class="eyebrow">FORM SETTINGS</span><h2>Public page</h2></div></div>
+          <form id="settingsForm" class="stack-form">
+            <label>Brand name<input id="settingBrand" type="text" /></label>
+            <label>Title<input id="settingTitle" type="text" /></label>
+            <label>Description<textarea id="settingDescription" rows="3"></textarea></label>
+            <label class="toggle-label"><input id="settingActive" type="checkbox" /> <span>Accept responses</span></label>
+            <button class="btn btn-primary" type="submit">Save settings</button>
+          </form>
+          <p id="settingsMessage" class="status-message"></p>
+        </section>
+      </div>
+
+      <section class="admin-card">
+        <div class="card-head responsive-head">
+          <div><span class="eyebrow">SUBMISSIONS</span><h2>Recent responses</h2></div>
+          <div class="button-row"><button id="refreshBtn" class="btn btn-ghost" type="button">Refresh</button><button id="exportBtn" class="btn btn-primary" type="button">Export CSV</button></div>
+        </div>
+        <div class="table-wrap"><table id="responsesTable"><thead><tr><th>Date</th><th>Answers</th></tr></thead><tbody></tbody></table></div>
+      </section>
+
+      <section class="admin-card">
+        <div class="card-head"><div><span class="eyebrow">QUESTION SCHEMA</span><h2>Imported questions</h2></div></div>
+        <div id="questionList" class="question-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/config.js"></script>
+  <script src="assets/admin.js"></script>
+</body>
+</html>
