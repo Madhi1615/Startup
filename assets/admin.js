@@ -17,7 +17,6 @@
 
   const esc = (v='') => String(v).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
   const loginError = document.getElementById('loginError');
-  const importMessage = document.getElementById('importMessage');
   const settingsMessage = document.getElementById('settingsMessage');
 
   async function isAdmin() {
@@ -58,7 +57,7 @@
     const [{ data: settings }, { data: fields }, { data: submissions, count }] = await Promise.all([
       sb.from('app_settings').select('*').eq('id','main').maybeSingle(),
       sb.from('form_fields').select('*').order('sort_order'),
-      sb.from('submissions').select('*', { count: 'exact' }).order('created_at', { ascending: false }).limit(100)
+      sb.from('submissions').select('*', { count: 'exact' }).order('created_at', { ascending: false }).limit(250)
     ]);
 
     fieldsCache = fields || [];
@@ -66,18 +65,18 @@
     document.getElementById('responseCount').textContent = count ?? submissionsCache.length;
     document.getElementById('questionCount').textContent = fieldsCache.length;
     document.getElementById('statusText').textContent = settings?.active === false ? 'Paused' : 'Open';
-    document.getElementById('sourceFormUrl').value = settings?.source_form_url || cfg.sourceGoogleFormUrl || '';
     document.getElementById('settingBrand').value = settings?.brand_name || "Let's Match";
     document.getElementById('settingTitle').value = settings?.title || '';
     document.getElementById('settingDescription').value = settings?.description || '';
     document.getElementById('settingActive').checked = settings?.active !== false;
-    renderQuestions(); renderResponses();
+    renderQuestions();
+    renderResponses();
   }
 
   function renderQuestions() {
     const root = document.getElementById('questionList');
-    if (!fieldsCache.length) { root.innerHTML = '<p class="muted">No questions imported yet.</p>'; return; }
-    root.innerHTML = fieldsCache.map((q,i) => `<article class="schema-row"><span class="schema-index">${i+1}</span><div><strong>${esc(q.label)}</strong><small>${esc(q.field_type)}${q.required ? ' • required' : ''}${q.options?.length ? ` • ${q.options.length} options` : ''}</small></div></article>`).join('');
+    if (!fieldsCache.length) { root.innerHTML = '<p class="muted">No questions found. Re-run the SQL migration.</p>'; return; }
+    root.innerHTML = fieldsCache.map((q,i) => `<article class="schema-row"><span class="schema-index">${i+1}</span><div><strong>${esc(q.label)}</strong><small>${esc(q.field_type)}${q.required ? ' • required' : ' • optional'}${q.options?.length ? ` • ${q.options.length} options` : ''}</small></div></article>`).join('');
   }
 
   function flattenAnswer(answer) {
@@ -110,25 +109,21 @@
     if (!error) await loadDashboard();
   });
 
-  document.getElementById('importBtn').addEventListener('click', async () => {
-    importMessage.textContent = 'Importing…';
-    const url = document.getElementById('sourceFormUrl').value.trim();
-    const { data, error } = await sb.functions.invoke('import-google-form', { body: { url } });
-    if (error) { importMessage.textContent = `Import failed: ${error.message}`; return; }
-    if (!data?.ok) { importMessage.textContent = `Import failed: ${data?.error || 'Unknown error'}`; return; }
-    importMessage.textContent = `Imported ${data.fieldCount} questions ✓`;
-    await loadDashboard();
-  });
-
   document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
 
   document.getElementById('exportBtn').addEventListener('click', () => {
     if (!submissionsCache.length) return;
-    const labels = [...new Set(submissionsCache.flatMap(r => Object.keys(r.answers || {})))];
-    const rows = [['created_at', ...labels], ...submissionsCache.map(r => [r.created_at, ...labels.map(l => flattenAnswer(r.answers?.[l]))])];
+    const labels = fieldsCache.map(f => f.label);
+    const extraLabels = [...new Set(submissionsCache.flatMap(r => Object.keys(r.answers || {})))].filter(l => !labels.includes(l));
+    const columns = [...labels, ...extraLabels];
+    const rows = [['created_at', ...columns], ...submissionsCache.map(r => [r.created_at, ...columns.map(l => flattenAnswer(r.answers?.[l]))])];
     const csv = rows.map(row => row.map(v => `"${String(v ?? '').replaceAll('"','""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `form-responses-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `community-responses-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   });
 
   routeAuth();

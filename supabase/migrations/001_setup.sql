@@ -1,4 +1,5 @@
 -- Run this once in Supabase Dashboard → SQL Editor.
+-- It creates the database, security policies, and the exact form fields shown in the supplied screenshots.
 
 create table if not exists public.admin_users (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -8,9 +9,8 @@ create table if not exists public.admin_users (
 create table if not exists public.app_settings (
   id text primary key,
   brand_name text not null default 'Let''s Match',
-  title text not null default 'Slide into this form ✨',
-  description text not null default 'A fun, colorful, social-app-inspired form experience.',
-  source_form_url text,
+  title text not null default 'Find your people. Build something together. ✨',
+  description text not null default 'Tell us who you are, what you''re building, what you can offer, and what you''re looking for.',
   active boolean not null default true,
   updated_at timestamptz not null default now()
 );
@@ -26,7 +26,7 @@ create table if not exists public.form_fields (
   required boolean not null default false,
   options jsonb not null default '[]'::jsonb,
   raw_type integer,
-  raw_data jsonb,
+  raw_data jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -38,7 +38,41 @@ create table if not exists public.submissions (
   created_at timestamptz not null default now()
 );
 
-insert into public.app_settings (id) values ('main') on conflict (id) do nothing;
+insert into public.app_settings (id, brand_name, title, description, active)
+values (
+  'main',
+  'Let''s Match',
+  'Find your people. Build something together. ✨',
+  'Tell us who you are, what you''re building, what you can offer, and what you''re looking for.',
+  true
+)
+on conflict (id) do update set
+  brand_name = excluded.brand_name,
+  title = excluded.title,
+  description = excluded.description;
+
+-- Exact question schema supplied by the user.
+-- Safe to rerun: this refreshes only the questions, not existing submissions.
+delete from public.form_fields;
+
+insert into public.form_fields (sort_order, label, description, field_type, required, options, raw_data) values
+(1, 'Email', null, 'email', true, '[]'::jsonb, '{"autocomplete":"email","placeholder":"you@example.com"}'::jsonb),
+(2, 'Your Whatsapp Number', 'we will use this to add to Whatsapp Group', 'tel', false, '[]'::jsonb, '{"autocomplete":"tel","placeholder":"+49 … / +91 …"}'::jsonb),
+(3, 'Your Name', null, 'text', true, '[]'::jsonb, '{"autocomplete":"name","placeholder":"What should we call you?"}'::jsonb),
+(4, 'Current City / Country', 'we would use this to decide venue of physical meet up.', 'text', false, '[]'::jsonb, '{"placeholder":"e.g. Berlin, Germany"}'::jsonb),
+(5, 'Who am I', 'Few words about yourself', 'paragraph', true, '[]'::jsonb, '{"placeholder":"Tell the community a little about you…"}'::jsonb),
+(6, 'What I''m obsessed with (currently) / building', 'Mention anything you are passionate about', 'paragraph', true, '[]'::jsonb, '{"placeholder":"What has your attention right now?"}'::jsonb),
+(7, 'One thing I can help with:', 'Tell people what you are good at', 'paragraph', true, '[]'::jsonb, '{"placeholder":"Your superpower, skill, experience…"}'::jsonb),
+(8, 'One thing I''m looking for', 'How you intend to benefit from this Community?', 'paragraph', true, '[]'::jsonb, '{"placeholder":"Co-founder? Feedback? Network? Inspiration?"}'::jsonb),
+(9, 'Which statement best describes your current involvement?', null, 'multiple_choice', false,
+ '["I am actively building a startup/product now","I have a clear idea and am looking for collaborators/co-founders.","I am actively looking for an idea/problem to solve, and join others","I want to learn, network, and offer feedback","I want to join and get inspired."]'::jsonb, '{}'::jsonb),
+(10, 'What is your primary domain/skill set? (Select all that apply)', null, 'checkboxes', false,
+ '["Engineering/Coding","Product Management/Strategy","Marketing/Growth","Sales/BizDev","Design/UX","Other"]'::jsonb,
+ '{"allow_other":true,"other_label":"Other"}'::jsonb),
+(11, 'Have you been involved in a startup/project before?', null, 'multiple_choice', false, '["Yes","No"]'::jsonb, '{}'::jsonb),
+(12, 'If yes, please provide a Link to your Startup/project or describe it.', null, 'paragraph', false, '[]'::jsonb, '{"placeholder":"Paste a link or describe the project…"}'::jsonb),
+(13, 'Any Remarks, additional information', null, 'paragraph', false, '[]'::jsonb, '{"placeholder":"Anything else you''d like us to know?"}'::jsonb),
+(14, 'I consent to the processing of my personal data for the purposes of community management and internal networking.', null, 'consent', true, '["Yes, I consent"]'::jsonb, '{}'::jsonb);
 
 create or replace function public.is_admin()
 returns boolean
@@ -60,7 +94,6 @@ alter table public.app_settings enable row level security;
 alter table public.form_fields enable row level security;
 alter table public.submissions enable row level security;
 
--- Remove policies if you rerun this script.
 drop policy if exists "admin can view own admin row" on public.admin_users;
 drop policy if exists "public can read settings" on public.app_settings;
 drop policy if exists "admins manage settings" on public.app_settings;
@@ -114,5 +147,5 @@ grant select on public.admin_users to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
 
 -- AFTER creating your admin user in Supabase Authentication → Users,
--- replace the UUID below and run this separately:
+-- copy that user's UUID and run this separately:
 -- insert into public.admin_users (user_id) values ('YOUR_AUTH_USER_UUID');

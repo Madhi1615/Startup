@@ -1,6 +1,13 @@
 (() => {
   const cfg = window.APP_CONFIG || {};
+  const localSchema = (window.FORM_SCHEMA || []).map((field, index) => ({
+    ...field,
+    id: field.id || `preview_${index + 1}`,
+    options: field.options || [],
+    raw_data: field.raw_data || {}
+  }));
   const configured = cfg.supabaseUrl && cfg.supabaseKey && !cfg.supabaseUrl.includes('PASTE_') && !cfg.supabaseKey.includes('PASTE_');
+
   const setupNotice = document.getElementById('setupNotice');
   const closedNotice = document.getElementById('closedNotice');
   const stage = document.getElementById('questionStage');
@@ -11,14 +18,14 @@
   const progressLabel = document.getElementById('progressLabel');
   const progressPercent = document.getElementById('progressPercent');
 
-  const state = { fields: [], index: 0, answers: {}, settings: null };
+  const state = { fields: [], index: 0, answers: {}, otherText: {}, settings: null, preview: !configured };
   let sb = null;
 
   const escapeHtml = (value='') => String(value).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
 
-  function setBrand(settings) {
+  function setBrand(settings = {}) {
     const brand = settings.brand_name || cfg.fallbackBrand || "Let's Match";
-    const title = settings.title || cfg.fallbackTitle || 'Find your vibe ✨';
+    const title = settings.title || cfg.fallbackTitle || 'Find your people ✨';
     const description = settings.description || cfg.fallbackDescription || '';
     document.getElementById('brandText').textContent = brand;
     document.getElementById('footerBrand').textContent = brand;
@@ -30,8 +37,12 @@
   async function loadForm() {
     if (!configured) {
       setupNotice.classList.remove('hidden');
+      setupNotice.innerHTML = '<strong>Preview mode.</strong> The exact form is ready to try. Connect Supabase in <code>assets/config.js</code> and run the SQL migration to save real responses.';
       setBrand({});
-      stage.innerHTML = `<div class="empty-card"><span>⚙️</span><h2>Connect Supabase to activate the custom form</h2><p>The project is ready. Follow README.md, then import your Google Form from the Admin page.</p></div>`;
+      state.fields = localSchema;
+      state.preview = true;
+      navRow.classList.remove('hidden');
+      renderQuestion();
       return;
     }
 
@@ -48,18 +59,15 @@
 
     state.settings = settings || {};
     setBrand(state.settings);
+
     if (settings && settings.active === false) {
       closedNotice.classList.remove('hidden');
       stage.innerHTML = `<div class="empty-card"><span>💤</span><h2>Responses are paused</h2><p>Please check back later.</p></div>`;
       return;
     }
 
-    state.fields = fields || [];
-    if (!state.fields.length) {
-      stage.innerHTML = `<div class="empty-card"><span>✨</span><h2>Almost ready</h2><p>Sign in to <a href="admin.html">Admin</a> and click <strong>Import / refresh questions</strong>.</p></div>`;
-      return;
-    }
-
+    state.fields = (fields && fields.length) ? fields : localSchema;
+    state.preview = false;
     navRow.classList.remove('hidden');
     renderQuestion();
   }
@@ -70,11 +78,13 @@
     const total = state.fields.length;
     const position = Math.min(state.index + 1, total);
     const pct = total ? Math.round((position / total) * 100) : 0;
+    const field = currentField();
     progressLabel.textContent = `Question ${position} of ${total}`;
     progressPercent.textContent = `${pct}%`;
     progressBar.style.width = `${pct}%`;
     backBtn.disabled = state.index === 0;
-    nextBtn.textContent = state.index === total - 1 ? 'Send it ♥' : 'Next →';
+    if (state.index === total - 1) nextBtn.textContent = state.preview ? 'Preview finish ♥' : 'Join the community ♥';
+    else nextBtn.textContent = field?.required ? 'Next →' : 'Skip / Next →';
   }
 
   function optionMarkup(field, value, multi=false) {
@@ -87,23 +97,42 @@
   function inputMarkup(field) {
     const answer = state.answers[field.id];
     const type = field.field_type;
-    if (type === 'paragraph') return `<textarea id="answerInput" rows="5" placeholder="Type your answer…">${escapeHtml(answer || '')}</textarea>`;
+    const meta = field.raw_data || {};
+    const placeholder = escapeHtml(meta.placeholder || 'Type your answer…');
+
+    if (type === 'paragraph') return `<textarea id="answerInput" rows="5" placeholder="${placeholder}">${escapeHtml(answer || '')}</textarea>`;
+    if (type === 'email') return `<input id="answerInput" type="email" value="${escapeHtml(answer || '')}" placeholder="${placeholder}" autocomplete="email" inputmode="email" />`;
+    if (type === 'tel') return `<input id="answerInput" type="tel" value="${escapeHtml(answer || '')}" placeholder="${placeholder}" autocomplete="tel" inputmode="tel" />`;
     if (type === 'date') return `<input id="answerInput" type="date" value="${escapeHtml(answer || '')}" />`;
     if (type === 'time') return `<input id="answerInput" type="time" value="${escapeHtml(answer || '')}" />`;
     if (type === 'dropdown') {
       const opts = (field.options || []).map(v => `<option value="${escapeHtml(v)}" ${answer === v ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
       return `<select id="answerInput"><option value="">Choose one…</option>${opts}</select>`;
     }
-    if (type === 'multiple_choice' || type === 'scale') return `<div id="choiceGroup" class="choice-grid">${(field.options || []).map(v => optionMarkup(field, String(v), false)).join('')}</div>`;
-    if (type === 'checkboxes') return `<div id="choiceGroup" class="choice-grid">${(field.options || []).map(v => optionMarkup(field, String(v), true)).join('')}</div>`;
-    if (type === 'file_upload') return `<div class="unsupported-box">📎 This question was a Google Forms file-upload field. File uploads are not enabled in this static version. You can change the question in Supabase or add Supabase Storage later.</div>`;
-    if (type === 'grid') return `<div class="unsupported-box">▦ A Google Forms grid question was detected. The imported raw options are preserved, but this starter renders grid questions as an administrator-review item. See README for extending grid rendering.</div>`;
-    return `<input id="answerInput" type="text" value="${escapeHtml(answer || '')}" placeholder="Type your answer…" autocomplete="off" />`;
+    if (type === 'multiple_choice' || type === 'scale') {
+      return `<div id="choiceGroup" class="choice-grid">${(field.options || []).map(v => optionMarkup(field, String(v), false)).join('')}</div>`;
+    }
+    if (type === 'checkboxes') {
+      const allowOther = !!meta.allow_other;
+      const otherSelected = (state.answers[field.id] || []).includes(meta.other_label || 'Other');
+      return `<div id="choiceGroup" class="choice-grid">${(field.options || []).map(v => optionMarkup(field, String(v), true)).join('')}</div>
+        ${allowOther && otherSelected ? `<div class="other-wrap"><label for="otherInput">Tell us your other skill</label><input id="otherInput" type="text" value="${escapeHtml(state.otherText[field.id] || '')}" placeholder="e.g. Legal, Finance, Research…" /></div>` : ''}`;
+    }
+    if (type === 'consent') {
+      const value = (field.options || [])[0] || 'Yes, I consent';
+      const chosen = state.answers[field.id] === true;
+      return `<button type="button" class="consent-choice ${chosen ? 'selected' : ''}" id="consentChoice" aria-pressed="${chosen}">
+        <span class="consent-box">${chosen ? '✓' : ''}</span><span>${escapeHtml(value)}</span>
+      </button>`;
+    }
+    return `<input id="answerInput" type="text" value="${escapeHtml(answer || '')}" placeholder="${placeholder}" autocomplete="${escapeHtml(meta.autocomplete || 'off')}" />`;
   }
 
   function renderQuestion() {
     const field = currentField();
+    if (!field) return;
     updateProgress();
+
     stage.innerHTML = `<article class="question-card" data-index="${state.index}">
       <div class="question-no">${String(state.index + 1).padStart(2,'0')}</div>
       <div class="question-kicker">${field.required ? 'REQUIRED' : 'OPTIONAL'} • ${escapeHtml(field.field_type.replaceAll('_',' ').toUpperCase())}</div>
@@ -117,7 +146,21 @@
     if (input) {
       input.addEventListener('input', () => state.answers[field.id] = input.value);
       input.addEventListener('change', () => state.answers[field.id] = input.value);
-      setTimeout(() => input.focus({ preventScroll: true }), 100);
+      setTimeout(() => input.focus({ preventScroll: true }), 80);
+    }
+
+    const otherInput = document.getElementById('otherInput');
+    if (otherInput) {
+      otherInput.addEventListener('input', () => state.otherText[field.id] = otherInput.value);
+      setTimeout(() => otherInput.focus({ preventScroll: true }), 80);
+    }
+
+    const consentChoice = document.getElementById('consentChoice');
+    if (consentChoice) {
+      consentChoice.addEventListener('click', () => {
+        state.answers[field.id] = state.answers[field.id] !== true;
+        renderQuestion();
+      });
     }
 
     document.querySelectorAll('.choice').forEach(btn => btn.addEventListener('click', () => {
@@ -126,6 +169,7 @@
         const list = new Set(state.answers[field.id] || []);
         list.has(value) ? list.delete(value) : list.add(value);
         state.answers[field.id] = [...list];
+        if (value === (field.raw_data?.other_label || 'Other') && !list.has(value)) delete state.otherText[field.id];
       } else {
         state.answers[field.id] = value;
       }
@@ -133,34 +177,71 @@
     }));
   }
 
+  function isEmpty(value) {
+    return Array.isArray(value) ? value.length === 0 : value == null || value === false || String(value).trim() === '';
+  }
+
   function validCurrent() {
     const field = currentField();
     const value = state.answers[field.id];
-    const empty = Array.isArray(value) ? value.length === 0 : value == null || String(value).trim() === '';
-    if (field.required && empty) {
-      document.getElementById('validationError').textContent = 'This one needs an answer before you move on ♥';
+    const error = document.getElementById('validationError');
+
+    if (field.required && isEmpty(value)) {
+      error.textContent = field.field_type === 'consent' ? 'Please give your consent before submitting ♥' : 'This one needs an answer before you move on ♥';
       return false;
     }
+
+    if (field.field_type === 'email' && value) {
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+      if (!emailOk) { error.textContent = 'Please enter a valid email address.'; return false; }
+    }
+
     return true;
+  }
+
+  function normalizedAnswer(field) {
+    const value = state.answers[field.id];
+    if (field.field_type === 'consent') return value === true ? 'Yes, I consent' : null;
+    if (field.field_type === 'checkboxes' && Array.isArray(value)) {
+      const otherLabel = field.raw_data?.other_label || 'Other';
+      return value.map(item => item === otherLabel && state.otherText[field.id]?.trim()
+        ? `${otherLabel}: ${state.otherText[field.id].trim()}`
+        : item);
+    }
+    return value ?? null;
   }
 
   async function submit() {
     if (!validCurrent()) return;
+
+    if (state.preview || !sb) {
+      navRow.classList.add('hidden');
+      progressBar.style.width = '100%';
+      progressPercent.textContent = '100%';
+      progressLabel.textContent = 'Preview complete';
+      stage.innerHTML = `<div class="success-card"><div class="success-heart">♥</div><span class="eyebrow">PREVIEW COMPLETE</span><h2>The form flow is ready 🎉</h2><p>Connect Supabase and run the included SQL to start saving real responses.</p><button id="restartBtn" class="btn btn-primary" type="button">Preview again</button></div>`;
+      document.getElementById('restartBtn').addEventListener('click', resetForm);
+      return;
+    }
+
     nextBtn.disabled = true;
-    nextBtn.textContent = 'Sending…';
+    nextBtn.textContent = 'Saving your profile…';
 
     const normalized = {};
+    const normalizedByField = {};
     state.fields.forEach(field => {
-      normalized[field.label] = state.answers[field.id] ?? null;
+      const value = normalizedAnswer(field);
+      normalized[field.label] = value;
+      normalizedByField[field.id] = value;
     });
 
     const payload = {
       answers: normalized,
-      answer_by_field: state.answers,
+      answer_by_field: normalizedByField,
       metadata: {
-        user_agent: navigator.userAgent,
         source: location.href,
-        submitted_at_client: new Date().toISOString()
+        submitted_at_client: new Date().toISOString(),
+        consent: state.fields.some(field => field.field_type === 'consent' && normalizedAnswer(field) === 'Yes, I consent')
       }
     };
 
@@ -176,13 +257,23 @@
     progressBar.style.width = '100%';
     progressPercent.textContent = '100%';
     progressLabel.textContent = 'Complete';
-    stage.innerHTML = `<div class="success-card"><div class="success-heart">♥</div><span class="eyebrow">IT'S A MATCH</span><h2>You're in! 🎉</h2><p>Your response has been saved successfully.</p><button id="restartBtn" class="btn btn-primary" type="button">Submit another response</button></div>`;
-    document.getElementById('restartBtn').addEventListener('click', () => {
-      state.index = 0; state.answers = {}; navRow.classList.remove('hidden'); renderQuestion();
-    });
+    stage.innerHTML = `<div class="success-card"><div class="success-heart">♥</div><span class="eyebrow">IT'S A MATCH</span><h2>Welcome to the community 🎉</h2><p>Your profile has been saved successfully. Time to connect, share and build.</p><button id="restartBtn" class="btn btn-primary" type="button">Submit another response</button></div>`;
+    document.getElementById('restartBtn').addEventListener('click', resetForm);
   }
 
-  backBtn.addEventListener('click', () => { if (state.index > 0) { state.index--; renderQuestion(); } });
+  function resetForm() {
+    state.index = 0;
+    state.answers = {};
+    state.otherText = {};
+    nextBtn.disabled = false;
+    navRow.classList.remove('hidden');
+    renderQuestion();
+  }
+
+  backBtn.addEventListener('click', () => {
+    if (state.index > 0) { state.index--; renderQuestion(); }
+  });
+
   nextBtn.addEventListener('click', async () => {
     if (!validCurrent()) return;
     if (state.index < state.fields.length - 1) { state.index++; renderQuestion(); }
